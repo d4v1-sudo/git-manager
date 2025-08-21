@@ -20,7 +20,7 @@ login <your-github-token>
 help
 ```
 
-**\***Generate your token here: https://github.com/settings/tokens
+**\*** Generate your token here: https://github.com/settings/tokens
 
 VOILA!
 
