@@ -4,7 +4,6 @@ Simple python tool to help on git usage
 Quick start:
 ```
 python3 main-en-us.py
-
 ```
 
 Inside the tool terminal:
