@@ -13,12 +13,14 @@ cd <project>
 help
 ```
 
-To clone a private repository or edit one, you need to login with your Github account:
+To clone a private repository or edit one, you need to login with your Github token*:
 ```
-login <your-git/github-token>
-<answer the quastions and bla bla bla>
+login <your-github-token>
+<answer the questions and bla bla bla>
 help
 ```
+
+*Generate your token here: https://github.com/settings/tokens
 
 VOILA!
 
