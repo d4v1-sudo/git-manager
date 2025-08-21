@@ -12,4 +12,4 @@ clone <https://github.com/<user>/<project>.git>
 cd <project>
 help
 ```
-[README-PT-BR](README-PT-BR.md)
+[LEIA-ME-PT-BR](README-PT-BR.md)
