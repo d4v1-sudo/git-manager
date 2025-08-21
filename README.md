@@ -13,7 +13,7 @@ cd <project>
 help
 ```
 
-**NOTE**: To clone a private repository or edit one, you need to login with your Github token*:
+**NOTE**: To clone a private repository or edit one, you need to login with your Github token **\***:
 ```
 login <your-github-token>
 <answer the questions and bla bla bla>
