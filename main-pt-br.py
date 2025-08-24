@@ -885,6 +885,113 @@ def set_config(key, value):
     else:
         print(f"❌ Configuração '{key}' não existe. Use 'config' para ver opções disponíveis.")
 
+def add_file_from_branch(branch_name, file_path):
+    """Adiciona um arquivo específico de outra branch ao stage atual"""
+    if current_repo is None:
+        print("❌ Nenhum repositório selecionado.")
+        return
+    
+    print(f"📝 Adicionando '{file_path}' da branch '{branch_name}'...")
+    
+    # Verifica se a branch existe
+    result = run_git(["branch", "-a"], show_output=False, return_output=True)
+    if result and branch_name not in result.stdout:
+        print(f"❌ Branch '{branch_name}' não encontrada.")
+        return
+    
+    # Usa git checkout para copiar o arquivo da branch
+    if run_git(["checkout", branch_name, "--", file_path]):
+        # Adiciona o arquivo ao stage
+        if run_git(["add", file_path]):
+            print(f"✅ Arquivo '{file_path}' adicionado da branch '{branch_name}' ao stage!")
+        else:
+            print(f"❌ Erro ao adicionar '{file_path}' ao stage.")
+    else:
+        print(f"❌ Erro ao copiar arquivo da branch '{branch_name}'.")
+
+def add_file_to_all_branches(file_path):
+    """Adiciona um arquivo ao stage de todas as branches"""
+    if current_repo is None:
+        print("❌ Nenhum repositório selecionado.")
+        return
+    
+    # Obtém a branch atual
+    result = run_git(["branch", "--show-current"], show_output=False, return_output=True)
+    if not result or not result.stdout.strip():
+        print("❌ Não foi possível determinar a branch atual.")
+        return
+    current_branch = result.stdout.strip()
+    
+    # Obtém todas as branches locais
+    result = run_git(["branch"], show_output=False, return_output=True)
+    if not result or not result.stdout.strip():
+        print("❌ Não foi possível listar branches.")
+        return
+    branches = [b.strip().lstrip('* ') for b in result.stdout.split('\n') if b.strip()]
+    
+    print(f"📝 Adicionando '{file_path}' em todas as branches...")
+    
+    # Itera por todas as branches
+    for branch in branches:
+        if branch != current_branch:
+            # Muda para a branch
+            if not run_git(["checkout", branch]):
+                print(f"❌ Falha ao mudar para branch '{branch}'.")
+                continue
+                
+            # Copia o arquivo da branch original
+            if run_git(["checkout", current_branch, "--", file_path]):
+                # Adiciona ao stage
+                if run_git(["add", file_path]):
+                    print(f"✅ '{file_path}' adicionado ao stage na branch '{branch}'")
+                else:
+                    print(f"❌ Erro ao adicionar '{file_path}' na branch '{branch}'")
+            else:
+                print(f"❌ Erro ao copiar '{file_path}' da branch '{current_branch}' para '{branch}'")
+    
+    # Volta para a branch original
+    run_git(["checkout", current_branch])
+    print(f"🔄 Voltando para branch '{current_branch}'")
+
+def delete_branch(branch_name):
+    """Deleta uma branch do projeto"""
+    if current_repo is None:
+        print("❌ Nenhum repositório selecionado.")
+        return
+    
+    # Verifica se a branch existe
+    result = run_git(["branch"], show_output=False, return_output=True)
+    if not result or branch_name not in result.stdout:
+        print(f"❌ Branch '{branch_name}' não encontrada.")
+        return
+    
+    # Obtém a branch atual
+    result = run_git(["branch", "--show-current"], show_output=False, return_output=True)
+    if not result or not result.stdout.strip():
+        print("❌ Não foi possível determinar a branch atual.")
+        return
+    current_branch = result.stdout.strip()
+    
+    # Impede deletar a branch atual
+    if branch_name == current_branch:
+        print(f"❌ Não é possível deletar a branch atual '{branch_name}'.")
+        return
+    
+    # Confirma exclusão
+    confirm = input(f"⚠️ Tem certeza que deseja excluir a branch '{branch_name}'? (s/N): ").lower()
+    if confirm in ['s', 'sim', 'yes', 'y']:
+        # Deleta a branch local
+        if run_git(["branch", "-d", branch_name]):
+            print(f"🗑️ Branch '{branch_name}' excluída localmente com sucesso!")
+            
+            # Tenta deletar a branch remota
+            if run_git(["push", "origin", f":{branch_name}"], show_output=True):
+                print(f"🌐 Branch '{branch_name}' excluída remotamente com sucesso!")
+        else:
+            print(f"❌ Erro ao excluir a branch '{branch_name}'. Tente 'git branch -D {branch_name}' para forçar.")
+    else:
+        print("❌ Exclusão cancelada.")
+
 def show_help(cmd=None):
     """Exibe ajuda detalhada dos comandos"""
     help_text = {
@@ -934,9 +1041,9 @@ def show_help(cmd=None):
             "examples": ["commit \"Adiciona nova funcionalidade\"", "commit \"Fix: corrige bug na validação\""]
         },
         "add": {
-            "desc": "Adiciona arquivo(s) ao stage ou copia arquivo de outra branch",
-            "usage": "add <arquivo> | add <branch> -- <arquivo>",
-            "examples": ["add arquivo.txt", "add main -- logo.svg", "add feature/nova -- config.json"]
+            "desc": "Adiciona arquivo(s) ao stage, copia de outra branch ou adiciona em todas as branches",
+            "usage": "add <arquivo> | add --stage <arquivo> ... | add <branch> -- <arquivo> | add all <arquivo>",
+            "examples": ["add arquivo.txt", "add --stage file1.txt file2.txt", "add main -- logo.svg", "add all config.json"]
         },
         "merge": {
             "desc": "Faz merge de outra branch na branch atual",
@@ -959,9 +1066,9 @@ def show_help(cmd=None):
             "examples": ["diff"]
         },
         "delete": {
-            "desc": "Remove um repositório local completamente",
-            "usage": "delete <nome-repo>",
-            "examples": ["delete projeto-antigo"]
+            "desc": "Remove um repositório local ou uma branch",
+            "usage": "delete <nome-repo> | delete <branch>",
+            "examples": ["delete projeto-antigo", "delete feature/obsoleta"]
         },
         "login": {
             "desc": "Configura token do GitHub para repositórios privados",
@@ -1291,9 +1398,12 @@ def main():
             check_remote_diff()
         elif cmd == "delete" or cmd == "rm":
             if args:
-                delete_project(args[0])
+                if os.path.isdir(os.path.join(repos_folder, args[0])):
+                    delete_project(args[0])
+                else:
+                    delete_branch(args[0])
             else:
-                print("❌ Uso: delete <nome-repo>")
+                print("❌ Uso: delete <nome-repo> | delete <branch>")
         elif cmd == "login":
             if args:
                 set_github_token(args[0])
@@ -1334,6 +1444,17 @@ def main():
                 branch_name = args[0]
                 file_path = args[2]
                 add_file_from_branch(branch_name, file_path)
+            elif len(args) >= 2 and args[0] == "all":
+                # Formato: add all <arquivo>
+                file_path = args[1]
+                add_file_to_all_branches(file_path)
+            elif len(args) >= 2 and args[0] == "--stage":
+                # Formato: add --stage <arquivo> <arquivo> ...
+                for file_path in args[1:]:
+                    if run_git(["add", file_path]):
+                        print(f"✅ '{file_path}' adicionado ao stage!")
+                    else:
+                        print(f"❌ Erro ao adicionar '{file_path}'.")
             elif args:
                 # Formato tradicional: add <arquivo>
                 for file_path in args:
@@ -1342,10 +1463,12 @@ def main():
                     else:
                         print(f"❌ Erro ao adicionar '{file_path}'.")
             else:
-                print("❌ Uso: add <arquivo> | add <branch> -- <arquivo>")
+                print("❌ Uso: add <arquivo> | add --stage <arquivo> ... | add <branch> -- <arquivo> | add all <arquivo>")
         else:
             print(f"❌ Comando '{cmd}' não reconhecido.")
             print("💡 Use 'help' para ver comandos disponíveis.")
 
 if __name__ == "__main__":
     main()
+
+# commit "add: logo.svg"
